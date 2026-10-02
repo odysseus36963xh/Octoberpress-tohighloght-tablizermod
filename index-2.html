@@ -1,0 +1,2105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Speech Table System</title>
+<style>
+/* =========================================================
+   PRACTICE HEATMAP — CSS SECTION
+   ========================================================= */
+
+/* The cell MUST be position:relative so the badge can anchor
+   to its upper-right corner without causing layout shifts. */
+.practice-cell {
+    position: relative;
+}
+
+/* Smooth color transition when the heatmap color changes.
+   Kept short to remain performant on large tables. */
+.practice-cell {
+    transition: background-color 0.25s ease-out;
+}
+
+/* -----------------------------------------
+   Practice level classes (threshold based)
+   ----------------------------------------- */
+.practice-low {
+    /* 1–9 listens */
+}
+
+.practice-medium {
+    /* 10–49 listens */
+}
+
+.practice-high {
+    /* 50–99 listens */
+}
+
+.practice-mastered {
+    /* 100+ listens */
+    font-weight: 600;
+}
+
+/* -----------------------------------------
+   Badge in the upper-right corner of a cell
+   ----------------------------------------- */
+.practice-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+
+    /* No layout shift: absolutely positioned, no flow impact */
+    pointer-events: none;
+    user-select: none;
+
+    font-size: 10px;
+    line-height: 1;
+    padding: 1px 4px;
+    border-radius: 8px;
+
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    white-space: nowrap;
+
+    /* Hidden by default; shown only when count > 0 */
+    display: none;
+    z-index: 2;
+}
+
+/* Visible state toggled by JS via class to avoid inline style churn */
+.practice-badge.is-visible {
+    display: inline-block;
+}
+
+/* -----------------------------------------
+   Vocab Highlighter — known words glow yellow
+   ----------------------------------------- */
+#sheet td.vocab-highlight {
+    background: #fff176 !important;
+}
+
+/* Click-to-highlight mode: crosshair cursor + active button look */
+#sheet.click-highlight-mode td[contenteditable='true'] {
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+}
+#clickHighlightBtn.is-on {
+    background: #f9a825 !important;
+    color: #111 !important;
+    box-shadow: 0 0 0 3px rgba(249,168,37,0.45);
+}
+
+
+
+
+  
+/* ========== AI MODULE STYLES ========== */
+
+/* Activate Button (shows on load) */
+.ai-activate {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 15px 30px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 25px;
+  font-weight: bold;
+  font-size: 16px;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.5);
+  z-index: 999;
+  transition: all 0.3s;
+}
+.ai-activate:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 30px rgba(102, 126, 234, 0.6);
+}
+.ai-activate.loading {
+  background: #ffc107;
+  cursor: wait;
+}
+.ai-activate.loaded {
+  background: #28a745;
+}
+
+/* Toggle Button (hidden until AI loads) */
+.ai-toggle {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 25px;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  z-index: 999;
+  display: none;
+  transition: transform 0.2s;
+}
+.ai-toggle.active { display: block; }
+.ai-toggle:hover { transform: scale(1.05); }
+
+/* AI Panel (sidebar) */
+.ai-panel {
+  position: fixed;
+  top: 0;
+  right: -400px;
+  width: 380px;
+  height: 100vh;
+  background: white;
+  box-shadow: -5px 0 25px rgba(0,0,0,0.2);
+  z-index: 1000;
+  transition: right 0.3s ease;
+  overflow-y: auto;
+}
+.ai-panel.active { right: 0; }
+
+.ai-panel-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.ai-panel-header h3 { margin: 0; }
+.ai-close {
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+}
+
+.ai-panel-body {
+  padding: 20px;
+}
+
+/* Command Box */
+.ai-command-box {
+  margin-bottom: 20px;
+}
+.ai-command-box label {
+  display: block;
+  margin-bottom: 10px;
+  font-weight: bold;
+  color: #667eea;
+  font-size: 15px;
+}
+.ai-command-box textarea {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+  resize: vertical;
+  transition: border-color 0.3s;
+  box-sizing: border-box;
+}
+.ai-command-box textarea:focus {
+  outline: none;
+  border-color: #667eea;
+}
+.ai-command-box button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.2s;
+  font-size: 14px;
+}
+.ai-command-box button:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+.ai-command-box button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none;
+}
+.ai-command-status {
+  margin-top: 10px;
+  padding: 10px;
+  background: #f0f4ff;
+  border-left: 4px solid #667eea;
+  border-radius: 5px;
+  font-size: 13px;
+  color: #555;
+  display: none;
+}
+.ai-command-status.active {
+  display: block;
+}
+
+/* Progress Display */
+.ai-progress {
+  margin: 20px 0;
+  padding: 15px;
+  background: #f0f4ff;
+  border-radius: 8px;
+  display: none;
+}
+.ai-progress.active { display: block; }
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: #e0e0e0;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  width: 0%;
+  transition: width 0.3s;
+}
+
+#aiProgressText {
+  font-size: 13px;
+  color: #667eea;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+#aiCurrentCell {
+  font-size: 12px;
+  color: #888;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Status Box */
+.ai-status {
+  padding: 12px;
+  background: #fff3cd;
+  border-left: 4px solid #ffc107;
+  border-radius: 5px;
+  font-size: 13px;
+  margin-bottom: 15px;
+}
+
+/* Stop Button */
+.ai-stop {
+  width: 100%;
+  padding: 12px;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 14px;
+}
+.ai-stop:hover { background: #c82333; }
+
+/* Cell Animations */
+.cell-processing {
+  background: #fff3cd !important;
+  animation: pulse 1s infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+.cell-completed {
+  background: #d4edda !important;
+  animation: flash 0.5s;
+}
+@keyframes flash {
+  0% { background: #28a745; }
+  100% { background: #d4edda; }
+}
+
+
+
+
+    
+*{box-sizing:border-box;}
+body{margin:0;font-family:sans-serif;background:#f1f3f4;color:#202124;overflow:auto;}
+header{height:56px;background:#fff;border-bottom:1px solid #dadce0;display:flex;align-items:center;gap:10px;padding:0 14px;position:sticky;top:0;z-index:1000;}
+button{border:none;background:#1a73e8;color:white;padding:8px 14px;border-radius:4px;font-size:13px;font-weight:500;cursor:pointer;transition:0.15s;}
+button:hover{background:#1765cc;}
+#toolbar{display:none;background:#fff;border-bottom:1px solid #dadce0;padding:10px 14px;gap:16px;flex-wrap:wrap;align-items:center;}
+#uploadBox{display:none;background:#fff;border-bottom:1px solid #dadce0;padding:14px;}
+label{font-size:13px;color:#5f6368;display:flex;align-items:center;gap:6px;}
+input,textarea,select{border:1px solid #dadce0;border-radius:4px;padding:6px 8px;font-size:13px;outline:none;}
+input:focus,textarea:focus,select:focus{border-color:#1a73e8;}
+textarea{width:320px;height:90px;resize:vertical;display:block;margin-bottom:10px;}
+#sheetWrap{overflow:auto;height:calc(100vh - 56px);background:#fff;}
+table{border-collapse:collapse;table-layout:fixed;background:white;}
+th{border:1px solid #e0e0e0;background:#f8f9fa;color:#5f6368;font-weight:500;text-align:center;height:32px;min-width:100px;width:100px;font-size:12px;position:sticky;top:0;z-index:20;}
+.row-head{min-width:50px;width:50px;left:0;z-index:30;position:sticky;background:#f8f9fa;}
+td{border:1px solid #e0e0e0;width:100px;height:32px;padding:4px 8px;font-size:13px;text-align:left;vertical-align:middle;background:white;position:relative;}
+td:hover{background:#f8fbff;}
+td:focus{outline:none;border:2px solid #1a73e8;z-index:50;}
+.col-select{width:90%;border:none;background:transparent;font-size:11px;color:#5f6368;}
+
+
+/* 1. The Floating Paperclip Button */
+#floatingClip {
+position: absolute;
+display: none; /* Hidden until a cell is clicked */
+background: #1a73e8;
+color: white;
+border: none;
+border-radius: 4px;
+padding: 2px 6px;
+font-size: 12px;
+cursor: pointer;
+z-index: 1000;
+box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+transition: transform 0.1s;
+}
+
+#floatingClip:hover {
+background: #1765cc;
+transform: scale(1.1);
+}
+
+/* 1b. The Floating Mic Button (per-cell audio recording) */
+#floatingMic {
+position: absolute;
+display: none;
+background: #e53935;
+color: white;
+border: none;
+border-radius: 4px;
+padding: 2px 6px;
+font-size: 12px;
+cursor: pointer;
+z-index: 1000;
+box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+transition: transform 0.1s;
+}
+
+#floatingMic:hover {
+background: #c62828;
+transform: scale(1.1);
+}
+
+#floatingMic.mic-recording {
+animation: micPulse 1s infinite;
+}
+
+@keyframes micPulse {
+0%, 100% { box-shadow: 0 0 0 0 rgba(229,57,53,0.7); }
+50% { box-shadow: 0 0 0 6px rgba(229,57,53,0); }
+}
+
+/* 2. The Card Popup Effect (For Images/Video/Text) */
+/* Container: a zero-size anchor point at dead-center of the screen.
+   Each bubble positions and centers ITSELF (see .bubbleGroup below),
+   so this no longer uses flex/row/gap — that layout was the cause of
+   the "cards sliding past each other" look: with 2 children present
+   (the fading-out one plus the new one), the flex row's own width grew
+   to fit both, which shifted where the whole row was centered. Now
+   every bubble stacks in the exact same centered spot regardless of
+   how many are in the DOM, so switching bubbles is a straight
+   cross-fade in place, never a slide. */
+#mediaPopup {
+position: fixed;
+top: 50%;
+left: 50%;
+z-index: 9999;
+pointer-events: none;
+}
+
+/* One bubble group = media bubble on top + written-content bubble under it.
+   Absolutely positioned and self-centered on #mediaPopup's anchor point —
+   this is the single line that pins every bubble to dead-center of the
+   screen, no matter how many bubbles happen to be in the DOM. */
+.bubbleGroup {
+position: absolute;
+top: 0;
+left: 0;
+display: flex;
+flex-direction: column;
+align-items: center;
+gap: 8px;
+opacity: 0;
+transform: translate(-50%, -50%) scale(0.8);
+transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+pointer-events: auto;
+}
+
+.bubbleGroup.bubbleShow {
+opacity: 1;
+transform: translate(-50%, -50%) scale(1);
+}
+
+/* Previous bubble, faded out but still in the DOM (may contain a
+   still-playing audio element under Overlap) until it's safe to remove. */
+.bubbleGroup.bubbleHidden {
+opacity: 0;
+pointer-events: none;
+}
+
+.bubbleGroup .mediaBox {
+background: #141414;
+padding: 12px;
+border-radius: 12px;
+box-shadow: 0 15px 40px rgba(0,0,0,0.6);
+}
+
+.bubbleGroup .mediaBox img, .bubbleGroup .mediaBox video {
+max-width: 55vw;
+max-height: 55vh;
+border-radius: 8px;
+display: block;
+}
+
+.bubbleGroup .mediaBox audio {
+width: 260px;
+display: block;
+margin: 4px 0;
+}
+
+/* The written cell-content bubble, shown beneath the media bubble */
+.textBubble {
+background: #1a73e8;
+color: #fff;
+padding: 10px 16px;
+border-radius: 16px;
+max-width: 45vw;
+font-size: 15px;
+line-height: 1.4;
+text-align: center;
+box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+word-wrap: break-word;
+white-space: pre-wrap;
+}
+
+
+
+/* Reading highlight — every cell gets the same look now that data
+   cells are always white (the header row above keeps its own
+   separate black/white alternating style, untouched). */
+td.reading,
+tr.reading td {
+background-color: #34ce57 !important;
+color: #141414 !important; /* Keeps text dark and readable */
+}
+
+::-webkit-scrollbar{width:10px;height:10px;}
+::-webkit-scrollbar-track{background:#f1f1f1;}
+::-webkit-scrollbar-thumb{background:#c1c1c1;border-radius:20px;}
+::-webkit-scrollbar-thumb:hover{background:#a8a8a8;}
+
+
+/* Header row (column letters) keeps its black/white alternating look. */
+th:nth-child(even) {
+background-color: #1e1e1e; /* Slightly lighter dark gray for headers */
+color: #ffffff;
+}
+
+/* Keep the .col-select language dropdown readable against that dark header */
+th:nth-child(even) .col-select {
+color: #e0e0e0;
+}
+th:nth-child(even) .col-select option {
+background-color: #141414;
+color: #e0e0e0;
+}
+
+</style>
+</head>
+<body>
+
+
+<header>
+<button onclick="saveTable()">Save Table Data</button>
+<button onclick="uploadTable()">Upload Table</button>
+
+<button onclick="toggleUpload()">Upload Column</button>
+
+<button onclick="toggleExtract()">Extract Column</button>
+
+<button onclick="toggleAutoVocab()" style="background:#2b7cff;">Auto Vocab Builder</button>
+
+<button onclick="toggleSpecialExtract()" style="background:#8e24aa;">Special Extract Column</button>
+<button onclick="toggleSpecialUpload()" style="background:#8e24aa;">Special Upload Column</button>
+
+<button onclick="toggleReader()">Reader Options</button>
+
+<!-- Hidden file input -->
+<!-- cellFileInput intentionally removed: script.js injects the live version
+     of this input (with the correct, broader accept list) at runtime.
+     Having a second copy here with the same id caused
+     document.getElementById("cellFileInput") to grab THIS stale node
+     instead, which is why screenshots (PNG) were silently rejected. -->
+
+
+<!-- The invisible popup container -->
+<div id="mediaPopup"></div>
+
+
+
+
+
+<button onclick="startReading()">Start Reading</button>
+<button onclick="stopReading()">Stop</button>
+<button id="openFinder">Frequency Finder</button>
+<button onclick="toggleTableizer()">Tableizer</button>
+  <button onclick="window.location.href='audio-converter.html'">Audio Converter</button> 
+
+  
+  <!-- AI ACTIVATE BUTTON (hidden — not set up correctly yet) -->
+<button id="aiActivate" class="ai-activate" style="display:none;">Turn On AI</button>
+<!-- AI TOGGLE BUTTON (hidden until loaded) -->
+<button id="aiToggle" class="ai-toggle">AI Assistant</button>
+<!-- AI PANEL -->
+<div id="aiPanel" class="ai-panel">
+  <div class="ai-panel-header">
+    <h3>🤖 AI Assistant</h3>
+    <button id="aiClose" class="ai-close">✕</button>
+  </div>
+  
+  <div class="ai-panel-body">
+    <!-- Command Input -->
+    <div class="ai-command-box">
+      <label>💬 Tell me what to do:</label>
+      <textarea 
+        id="aiCommand" 
+        placeholder="Examples:
+• Translate column A to Spanish in column B
+• Summarize column C into column D
+• Fix grammar in column A, put in B
+• Detect sentiment in column E
+
+Press Ctrl+Enter to run"
+        rows="5"
+      ></textarea>
+      <button id="aiExecute" disabled>▶ Execute Command</button>
+      <div id="aiCommandStatus" class="ai-command-status"></div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div id="aiProgress" class="ai-progress">
+      <div class="progress-bar">
+        <div id="aiProgressFill" class="progress-fill"></div>
+      </div>
+      <div id="aiProgressText">Ready</div>
+      <div id="aiCurrentCell"></div>
+    </div>
+
+    <!-- Status Display -->
+    <div id="aiStatus" class="ai-status">Click "Turn On AI" button to load models</div>
+    
+    <!-- Stop Button -->
+    <button id="aiStop" class="ai-stop" style="display:none">⏹ Stop Processing</button>
+  </div>
+</div>
+
+
+<div style="display:flex; gap:10px; align-items:center; margin:10px 0;">
+<button id="recordBtn" style="background:#28a745; padding:10px 16px; border:none; color:white; border-radius:8px; cursor:pointer; font-weight:bold;">Macro Audio Record</button>
+<button id="stopRecordBtn" style="background:#28a745; padding:10px 16px; border:none; color:white; border-radius:8px; cursor:pointer; font-weight:bold; display:none;">Stop Macro Recording</button>
+<div id="recordingTimer" style="display:none; padding:8px 14px; background:#222; color:#28a745; border-radius:8px; font-weight:bold; font-size:16px; font-family:monospace;">
+00:00
+</div>
+</div>
+
+<div id="recordingStatus" style="display:none; padding:10px; background:#f39c12; border-radius:8px; color:white; margin:10px 0; font-weight:bold;">
+Recording in progress...
+</div>
+
+<button id="resetHeatmapBtn" onclick="resetHeatmap()">Reset Heatmap</button>
+<button id="curtainDataBtn" onclick="toggleCurtainData()" style="background:#8e24aa;">See Behind-Curtain Data</button>
+
+
+</header>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div id="uploadBox">
+<h3>Upload Data</h3>
+
+<textarea 
+id="columnData" 
+placeholder="Paste your data here (one item per line)"
+style="width:100%; height:160px; font-family:monospace;"
+></textarea>
+
+<br><br>
+
+<label><strong>Start Cell</strong> (e.g. A1, B5, C12)</label><br>
+<input
+id="startCellUpload"
+type="text"
+placeholder="A1"
+style="padding:8px; font-size:15px; width:130px;"
+>
+
+<br><br>
+
+<label><strong>Direction</strong></label><br>
+<select id="uploadDirection" style="padding:8px; font-size:15px;">
+<option value="down">Down (vertical)</option>
+<option value="across">Across (horizontal)</option>
+</select>
+
+<br><br>
+
+<button onclick="uploadColumn()" style="padding:12px 28px; font-size:16px;">
+Upload
+</button>
+</div>
+
+
+
+
+<!-- ===============================
+    AUTO VOCAB BUILDER (one-click frequency automation)
+    Runs the same algorithm as the Frequency Finder popup,
+    three times (1/2/3-word combos), and stacks the results
+    straight into Column A. Nothing about the Frequency Finder
+    itself is changed.
+================================ -->
+<div id="autoVocabBox" style="display:none; margin-top:10px; border:1px solid #2b7cff; padding:10px; border-radius:8px; background:#111; color:#fff;">
+
+<h3>⚡ Auto Vocab Builder</h3>
+<div style="font-size:12px; color:#aaa; margin-bottom:8px;">
+Paste your target-language text below (a chapter, a whole book, a gospel
+presentation, whatever). This finds the top most-frequent single words,
+then the top most-frequent 2-word combos, then the top most-frequent
+3-word combos — and stacks all three lists into Column A, ready for you
+to add translations in Column B.
+</div>
+
+<textarea
+id="autoVocabText"
+placeholder="Paste your text here…"
+style="width:100%; height:180px; font-family:monospace; background:#141414; color:#e0e0e0; border:1px solid #333;"
+></textarea>
+
+<br><br>
+
+<label><strong>Top N per list</strong> (default 30)</label><br>
+<input id="autoVocabTopN" type="number" min="1" max="500" value="30" style="padding:8px; font-size:15px; width:100px;">
+
+<br><br>
+
+<label><strong>Start Cell</strong> (e.g. A1)</label><br>
+<input id="autoVocabStart" type="text" placeholder="A1" style="padding:8px; font-size:15px; width:130px;">
+
+<br><br>
+
+<button onclick="autoBuildVocabTable()" style="background:#2b7cff; padding:12px 28px; font-size:16px;">
+Generate Table (1★ 2★ 3-word)
+</button>
+
+<div id="autoVocabStatus" style="font-size:12px; color:#8f8; margin-top:8px;"></div>
+
+</div>
+
+
+<!-- ===============================
+    TABLEIZER
+    Paste in a large block of text (a chapter, a book excerpt,
+    whatever). Every sentence becomes its own row; every word AND
+    every punctuation symbol becomes its own cell within that row.
+    A blank line in the source text (a paragraph break) becomes a
+    blank row in the sheet.
+
+    Includes a second tool in the same box: Vocab Highlighter.
+    Paste in words the student already knows and hit Highlight —
+    every cell anywhere on the sheet that matches one of those
+    words exactly turns yellow, so whatever's LEFT unhighlighted
+    is what the student hasn't learned yet.
+================================ -->
+<div id="tableizerBox" style="display:none; margin-top:10px; border:1px solid #2b7cff; padding:10px; border-radius:8px; background:#111; color:#fff;">
+
+<h3>Tableizer</h3>
+<div style="font-size:12px; color:#aaa; margin-bottom:8px;">
+Paste a large block of text below. Each sentence gets placed on its own row,
+and every word and punctuation symbol (commas, periods, colons, parentheses,
+etc.) gets its own cell. A blank line in your text (like the gap between
+paragraphs in a book) becomes a blank row in the sheet, to keep things clean.
+</div>
+
+<textarea
+id="tableizerText"
+placeholder="Paste your text here…"
+style="width:100%; height:180px; font-family:monospace; background:#141414; color:#e0e0e0; border:1px solid #333;"
+></textarea>
+
+<br><br>
+
+<label><strong>Start Cell</strong> (e.g. A1)</label><br>
+<input id="tableizerStart" type="text" placeholder="A1" style="padding:8px; font-size:15px; width:130px;">
+
+<br><br>
+
+<button onclick="tableizeText()" style="background:#2b7cff; padding:12px 28px; font-size:16px;">
+Tableize
+</button>
+
+<div id="tableizerStatus" style="font-size:12px; color:#8f8; margin-top:8px;"></div>
+
+<hr style="border-color:#333; margin:16px 0;">
+
+<h3>Vocab Highlighter</h3>
+<div style="font-size:12px; color:#aaa; margin-bottom:8px;">
+Paste (or type) vocabulary the student already knows — one word per line,
+or separated by commas. Hit Highlight and every cell anywhere on the sheet
+that matches one of those words exactly turns yellow. Whatever's left
+un-highlighted is what the student hasn't learned yet, so they can focus
+their attention there instead of re-reading words they already know.
+</div>
+
+<textarea
+id="vocabHighlightText"
+placeholder="e.g. the, and, house, water, run…"
+style="width:100%; height:100px; font-family:monospace; background:#141414; color:#e0e0e0; border:1px solid #333;"
+></textarea>
+
+<br><br>
+
+<button onclick="highlightVocab()" style="background:#f9a825; color:#111; padding:12px 28px; font-size:16px;">
+Highlight
+</button>
+<button onclick="clearVocabHighlights()">
+Clear Highlights
+</button>
+
+<div id="vocabHighlightStatus" style="font-size:12px; color:#8f8; margin-top:8px;"></div>
+
+<hr style="border-color:#333; margin:16px 0;">
+
+<div style="font-size:12px; color:#aaa; margin-bottom:8px;">
+Once you've highlighted the words already known, harvest everything else:
+this pulls every un-highlighted word/symbol out of the sheet, row by row,
+keeping the original sentence order — highlighted (known) cells are simply
+skipped, so a sentence may come out a little broken if it had known words
+in the middle of it. Paste the result into Frequency Finder or Auto Vocab
+Builder to study just what's actually new.<br><br>
+No word list handy? Turn on <b>Click to Highlight Vocabulary</b> and just
+click any word in the table to mark it as known — every other cell with that same word highlights too (click again to undo).
+Turn it off when you want to edit cells normally.
+</div>
+
+<button onclick="harvestUnhighlighted()" style="background:#00897b; padding:12px 28px; font-size:16px;">
+Harvest Un-Highlighted Text
+</button>
+<button id="clickHighlightBtn" onclick="toggleClickHighlightMode()" style="background:#5e35b1; padding:12px 28px; font-size:16px;">
+Click to Highlight Vocabulary: OFF
+</button>
+
+<textarea
+id="harvestedTextOutput"
+readonly
+placeholder="Harvested text will appear here…"
+style="width:100%; height:140px; font-family:monospace; background:#141414; color:#e0e0e0; border:1px solid #333; margin-top:8px; display:none;"
+></textarea>
+
+<button id="copyHarvestedBtn" onclick="copyHarvestedText()" style="display:none; margin-top:8px;">
+Copy to Clipboard
+</button>
+
+<div id="harvestStatus" style="font-size:12px; color:#8f8; margin-top:8px;"></div>
+
+</div>
+
+
+
+<!-- ===============================
+    EXTRACT POPUP BOX
+================================ -->
+<div id="extractBox" style="display:none; margin-top:10px; border:1px solid #ccc; padding:10px; border-radius:8px; background:#111; color:#fff;">
+
+<h3>Extract Range</h3>
+
+<label>Start Cell:</label>
+<input type="text" id="extractStart" placeholder="A1">
+
+<label>End Cell:</label>
+<input type="text" id="extractEnd" placeholder="C5">
+
+<div style="margin-top:10px;">
+<button onclick="extractRange('copy')">📋 Copy</button>
+<button onclick="extractRange('remove')">🗑 Remove</button>
+</div>
+
+</div>
+
+
+<!-- ===============================
+    SPECIAL EXTRACT COLUMN (range + media -> downloadable .json)
+================================ -->
+<div id="specialExtractBox" style="display:none; margin-top:10px; border:1px solid #8e24aa; padding:10px; border-radius:8px; background:#111; color:#fff;">
+
+<h3>📦 Special Extract Column</h3>
+<div style="font-size:12px; color:#aaa; margin-bottom:8px;">
+Grabs a range of cells — including any images/audio/video inside them — and downloads it
+as one .json file. Use Special Upload Column (on this or any sheet) to place it back in later.
+</div>
+
+<label>Start Cell:</label>
+<input type="text" id="specialExtractStart" placeholder="A1">
+
+<label>End Cell:</label>
+<input type="text" id="specialExtractEnd" placeholder="C50">
+
+<div style="margin-top:10px;">
+<button onclick="specialExtractColumn()" style="background:#8e24aa;">⬇ Download Range as .json</button>
+</div>
+<div id="specialExtractStatus" style="font-size:12px; color:#8f8; margin-top:8px;"></div>
+
+</div>
+
+
+<!-- ===============================
+    SPECIAL UPLOAD COLUMN (upload a special-extract .json into chosen cells)
+================================ -->
+<div id="specialUploadBox" style="display:none; margin-top:10px; border:1px solid #8e24aa; padding:10px; border-radius:8px; background:#111; color:#fff;">
+
+<h3>📥 Special Upload Column</h3>
+<div style="font-size:12px; color:#aaa; margin-bottom:8px;">
+Upload a .json file made with Special Extract Column (text + media) and place it starting at
+whichever cell you choose. The block keeps its original shape relative to that start cell.
+</div>
+
+<label>File:</label><br>
+<input type="file" id="specialUploadFile" accept=".json" style="margin:6px 0;">
+
+<br>
+<label>Place at Start Cell:</label>
+<input type="text" id="specialUploadStart" placeholder="A1">
+
+<div style="margin-top:10px;">
+<button onclick="specialUploadColumn()" style="background:#8e24aa;">⬆ Upload Into Sheet</button>
+</div>
+<div id="specialUploadStatus" style="font-size:12px; color:#8f8; margin-top:8px;"></div>
+
+</div>
+
+
+<!-- ===============================
+    EXTRACT POPUP BOX
+================================ -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div id="toolbar">
+<label>Speed <input id="speed" type="range" min="0.5" max="2" step="0.1" value="0.85"></label>
+<label>Overlap Delay <input id="overlapDelay" type="range" min="0" max="10" step="0.1" value="0"> <span id="overlapDelayLabel">0.0s (off)</span></label>
+<label>Repeat Row <input id="repeatRow" type="number" min="1" value="1"></label>
+<label>Repeat Table Loop <input id="repeatTable" type="number" min="1" value="1"></label>
+<label>Repeat Cell <input id="repeatCell" type="number" min="1" value="1"></label>
+<label>Start Cell <input id="startCell" type="text" placeholder="A1"></label>
+<label>End Cell <input id="endCell" type="text" placeholder="Z26"></label>
+<label>Reverse Order <input id="reverse" type="checkbox"></label>
+</div>
+
+<div id="sheetWrap">
+  <table id="sheet"></table>
+</div>
+
+<script>
+// ===============================
+// OVERLAP DIAL — live label
+// (0 = off / original one-at-a-time behavior;
+//  >0 = seconds the NEXT cell in the row waits
+//  after the CURRENT cell's audio starts before
+//  it begins playing, so they overlap)
+// ===============================
+(function () {
+  const dial = document.getElementById("overlapDelay");
+  const label = document.getElementById("overlapDelayLabel");
+  if (!dial || !label) return;
+  const update = () => {
+    const v = parseFloat(dial.value || "0");
+    label.textContent = v <= 0 ? "0.0s (off)" : v.toFixed(1) + "s overlap";
+  };
+  dial.addEventListener("input", update);
+  update();
+})();
+
+// ===============================
+// 1. CONFIGURATION
+// ===============================
+let TOTAL_COLS = 26;
+let totalRows = 26;
+const sheetTable = document.getElementById("sheet");
+
+let staticCells = Array(TOTAL_COLS)
+  .fill('<td contenteditable="true"></td>')
+  .join("");
+
+// ===============================
+// 1b. COLUMN LABELING (lets the sheet expand sideways forever)
+// Columns 0-25   -> A .. Z
+// Columns 26-51  -> 1A .. 1Z
+// Columns 52-77  -> 2A .. 2Z
+// ...and so on. The leading number and the row number never collide
+// because a letter always sits between them, so cell refs stay simple:
+// "A5" (column A, row 5) or "1A5" (column 1A, row 5) — no dash needed.
+// ===============================
+function colIndexToLabel(col) {
+  const group = Math.floor(col / 26);
+  const letter = String.fromCharCode(65 + (col % 26));
+  return group === 0 ? letter : (group + letter);
+}
+
+function cellRefFromColRow(col, row1) {
+  return colIndexToLabel(col) + row1;
+}
+
+// Parses "A5", "B12", "1A5", "2Z40", etc.
+// Returns { col, row } with a 1-based row (A1 = row 1), or null if invalid.
+function parseColRowRef(ref) {
+  if (!ref) return null;
+  const m = ref.trim().toUpperCase().match(/^(\d*)([A-Z])(\d+)$/);
+  if (!m) return null;
+  const group = m[1] ? parseInt(m[1], 10) : 0;
+  const letter = m[2];
+  const row1 = parseInt(m[3], 10);
+  const col = group * 26 + (letter.charCodeAt(0) - 65);
+  return { col: col, row: row1 };
+}
+
+window.colIndexToLabel = colIndexToLabel;
+window.cellRefFromColRow = cellRefFromColRow;
+window.parseColRowRef = parseColRowRef;
+
+// ===============================
+// 2. BUILD TABLE
+// ===============================
+// Header row (column letters)
+let headerHtml = "<tr><th></th>";
+for (let c = 0; c < TOTAL_COLS; c++) {
+  headerHtml += `<th>${colIndexToLabel(c)}</th>`;
+}
+headerHtml += "</tr>";
+
+// Language selector row
+let selRow = "<tr><th></th>";
+for (let c = 0; c < TOTAL_COLS; c++) {
+  selRow += `<th><select class='col-select'>` +
+            `<option>Off</option>` +
+            `<option>EN</option>` +
+            `<option>IT</option>` +
+            `<option>ES</option>` +
+            `<option>FR</option>` +
+            `<option>DE</option>` +
+            `</select></th>`;
+}
+selRow += "</tr>";
+
+// Data rows (26 × 26)
+let bodyHtml = "";
+for (let r = 1; r <= totalRows; r++) {
+  bodyHtml += `<tr><th class="row-head">${r}</th>${staticCells}</tr>`;
+}
+
+sheetTable.innerHTML = headerHtml + selRow + bodyHtml;
+
+
+// ===============================
+// 2b. LATERAL EXPANSION
+// Adds more columns on the right, following the A..Z, 1A..1Z,
+// A*2..Z*2... scheme, so the sheet can grow sideways indefinitely.
+// Extends the header row, the language-selector row, and every
+// existing data row, then keeps staticCells in sync so any row
+// created afterward (via addNewRows) already has the new width.
+// ===============================
+function addNewCols(count) {
+  if (count <= 0) return;
+  const startIdx = TOTAL_COLS;
+  TOTAL_COLS += count;
+
+  const rows = sheetTable.rows; // rows[0]=letters, rows[1]=language selectors, rows[2+]=data
+
+  let headerAdd = "";
+  let selectorAdd = "";
+  for (let c = startIdx; c < TOTAL_COLS; c++) {
+    headerAdd += `<th>${colIndexToLabel(c)}</th>`;
+    selectorAdd += `<th><select class='col-select'>` +
+      `<option>Off</option><option>EN</option><option>IT</option>` +
+      `<option>ES</option><option>FR</option><option>DE</option></select></th>`;
+  }
+  rows[0].insertAdjacentHTML("beforeend", headerAdd);
+  rows[1].insertAdjacentHTML("beforeend", selectorAdd);
+
+  for (let r = 2; r < rows.length; r++) {
+    const rowIndex = r - 2; // matches the "row:col" cellId scheme used elsewhere
+    let cellsAdd = "";
+    for (let c = startIdx; c < TOTAL_COLS; c++) {
+      cellsAdd += `<td contenteditable="true" data-cell-id="${rowIndex}:${c}" data-listen-count="0" class="practice-cell"></td>`;
+    }
+    rows[r].insertAdjacentHTML("beforeend", cellsAdd);
+  }
+
+  // Keep the "brand new row" template in sync so addNewRows() produces
+  // full-width rows from now on.
+  staticCells = Array(TOTAL_COLS)
+    .fill('<td contenteditable="true"></td>')
+    .join("");
+
+  // The new columns' language selectors are created with just the
+  // Off/EN/IT/ES/FR/DE placeholder list — updateLanguageDropdowns()
+  // (in script.js) is what actually fills every selector in with the
+  // full list of languages the browser's TTS voices support, so run
+  // it again now that new selectors exist.
+  if (typeof updateLanguageDropdowns === "function") {
+    updateLanguageDropdowns();
+  }
+}
+window.addNewCols = addNewCols;
+
+
+// ===============================
+// 3. SMART ROW EXPANSION
+// ===============================
+function addNewRows(count) {
+  if (count <= 0) return;
+  let htmlBuffer = "";
+  for (let i = 0; i < count; i++) {
+    totalRows++;
+    htmlBuffer += `<tr><th class="row-head">${totalRows}</th>${staticCells}</tr>`;
+  }
+  sheetTable.insertAdjacentHTML('beforeend', htmlBuffer);
+
+  // HEATMAP FIX: rows created after the page first loads (Tab expansion,
+  // Upload Column, Auto Vocab Builder, etc.) never went through the
+  // one-time startup pass that gives cells a stable cellId. Without a
+  // cellId, a cell can still light up with color in the current session,
+  // but its count has nothing to key off of when saving/restoring — so
+  // after a reload the heatmap on those rows silently resets, looking
+  // like it "doesn't cover" the rest of the sheet. Assigning the id the
+  // moment the row is created (using the same "row:col" scheme the app
+  // already uses everywhere else) closes that gap for every future row.
+  const allRows = sheetTable.rows;
+  for (let i = allRows.length - count; i < allRows.length; i++) {
+    const row = allRows[i];
+    const rowIndex = row.rowIndex - 2; // minus header + language-selector rows
+    for (let c = 0; c < TOTAL_COLS; c++) {
+      const cell = row.cells[c + 1]; // +1 for the row-number column
+      if (!cell) continue;
+      cell.dataset.cellId = rowIndex + ":" + c;
+      cell.dataset.listenCount = "0";
+      cell.classList.add("practice-cell");
+    }
+  }
+}
+
+
+// ===============================
+// 4. CARET HELPER (single definition)
+// ===============================
+function placeCaretAtEnd(el) {
+  el.focus();
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  range.collapse(false);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+
+// ===============================
+// 5. TAB NAVIGATION
+// ===============================
+sheetTable.addEventListener('keydown', (e) => {
+  const target = e.target;
+  if (target.tagName.toLowerCase() !== 'td') return;
+
+  if (e.key === 'Tab') {
+    e.preventDefault();
+
+    const tdIndex = Array.from(target.parentElement.children)
+      .indexOf(target);
+    const rowIndex = Array.from(sheetTable.querySelectorAll('tr'))
+      .indexOf(target.parentElement);
+
+    let nextTd;
+
+    if (tdIndex === TOTAL_COLS) {
+      if (rowIndex === sheetTable.rows.length - 1) {
+        addNewRows(1);
+        const newRow = sheetTable.rows[sheetTable.rows.length - 1];
+        nextTd = newRow.cells[1];
+      } else {
+        const nextRow = sheetTable.rows[rowIndex + 1];
+        nextTd = nextRow.cells[1];
+      }
+    } else {
+      nextTd = target.nextElementSibling;
+    }
+
+    if (nextTd && nextTd.tagName.toLowerCase() === 'td') {
+      nextTd.focus();
+      placeCaretAtEnd(nextTd);
+    }
+  }
+});
+
+
+// ===============================
+// 6. COLUMN UPLOAD (unified)
+// ===============================
+window.uploadColumn = function () {
+  const rawText = document.getElementById("columnData")?.value?.trim();
+  if (!rawText) {
+    alert("Please paste some text.");
+    return;
+  }
+
+  // Parse start cell (e.g. "A1", "B5", "C12", or "1A5" for extended columns)
+  const startCellInput = document.getElementById("startCellUpload")
+    ?.value?.trim().toUpperCase() || "A1";
+  const parsedStart = parseColRowRef(startCellInput);
+  if (!parsedStart) {
+    alert("Invalid cell format. Use A1, B5, C12, etc. (or 1A5 for extended columns).");
+    return;
+  }
+
+  let startCol = parsedStart.col;
+  let startRow = parsedStart.row - 1;
+
+  const direction = document.getElementById("uploadDirection")?.value || "down";
+
+  const lines = rawText.split(/\r?\n/).filter(x => x.trim() !== "");
+  if (!lines.length) return;
+
+  // Auto-expand if needed
+  const neededRows = direction === "down"
+    ? startRow + lines.length
+    : startRow + 1;
+  const currentDataRows = sheetTable.rows.length - 2;
+
+  if (neededRows > currentDataRows) {
+    addNewRows(neededRows - currentDataRows);
+  }
+
+  // Fill cells
+  for (let i = 0; i < lines.length; i++) {
+    let r = startRow;
+    let c = startCol;
+
+    if (direction === "down") {
+      r += i;
+    } else {
+      c += i;
+    }
+
+    const row = sheetTable.rows[r + 2]; // +2 for header + selector
+    if (!row) continue;
+    const cell = row.cells[c + 1];      // +1 for row-number
+    if (cell) cell.innerText = lines[i];
+  }
+
+  alert(`✅ Uploaded ${lines.length} item${lines.length > 1 ? 's' : ''}!`);
+};
+
+
+// ===============================
+// 7. TOGGLE FUNCTIONS (single definitions)
+// ===============================
+window.toggleUpload = function () {
+  const box = document.getElementById("uploadBox");
+  if (!box) return;
+  box.style.display = (box.style.display === "block") ? "none" : "block";
+};
+
+window.toggleExtract = function () {
+  const box = document.getElementById("extractBox");
+  if (!box) return;
+  const uploadBox = document.getElementById("uploadBox");
+  if (uploadBox) uploadBox.style.display = "none";
+  box.style.display = (box.style.display === "block") ? "none" : "block";
+};
+
+window.toggleReader = function () {
+  const bar = document.getElementById("toolbar");
+  if (!bar) return;
+  bar.style.display = (bar.style.display === "flex") ? "none" : "flex";
+};
+
+// ===============================
+// 8. AUTO VOCAB BUILDER
+// (Same tokenizing/n-gram math as the Frequency Finder popup —
+//  just run three times back-to-back and stacked into Column A)
+// ===============================
+function normalizeTextForFreq(text) {
+  text = text.normalize("NFKC");
+  text = text.replace(/\p{N}/gu, " ");
+  text = text.toLocaleLowerCase();
+  text = text.replace(/[\p{P}\p{S}\p{C}]/gu, " ");
+  text = text.replace(/\s+/g, " ").trim();
+  return text;
+}
+
+function tokenizeForFreq(text) {
+  const m = text.match(/\p{L}+/gu);
+  return m ? m : [];
+}
+
+function buildNgramsForFreq(words, n) {
+  if (n < 1) n = 1;
+  const out = [];
+  for (let i = 0; i <= words.length - n; i++) {
+    out.push(words.slice(i, i + n).join(" "));
+  }
+  return out;
+}
+
+function topFrequencyList(words, n, topN) {
+  const units = buildNgramsForFreq(words, n);
+  const freq = Object.create(null);
+  for (let i = 0; i < units.length; i++) {
+    freq[units[i]] = (freq[units[i]] || 0) + 1;
+  }
+  return Object.keys(freq)
+    .map(function (w) { return { word: w, count: freq[w] }; })
+    .sort(function (a, b) { return b.count - a.count; })
+    .slice(0, topN);
+}
+
+window.toggleAutoVocab = function () {
+  const box = document.getElementById("autoVocabBox");
+  if (!box) return;
+  // Close other popup boxes so only one is open at a time
+  ["uploadBox", "extractBox", "specialExtractBox", "specialUploadBox", "tableizerBox"].forEach(function (id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  });
+  box.style.display = (box.style.display === "block") ? "none" : "block";
+};
+
+window.toggleTableizer = function () {
+  const box = document.getElementById("tableizerBox");
+  if (!box) return;
+  // Close other popup boxes so only one is open at a time
+  ["uploadBox", "extractBox", "specialExtractBox", "specialUploadBox", "autoVocabBox"].forEach(function (id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  });
+  box.style.display = (box.style.display === "block") ? "none" : "block";
+  // Closing the panel also turns off click-to-highlight so cells edit normally again
+  if (box.style.display === "none" && window.clickHighlightMode) window.toggleClickHighlightMode();
+};
+
+window.autoBuildVocabTable = function () {
+  const statusEl = document.getElementById("autoVocabStatus");
+  const raw = document.getElementById("autoVocabText")?.value || "";
+
+  if (!raw.trim()) {
+    alert("Please paste some text first.");
+    return;
+  }
+
+  let topN = parseInt(document.getElementById("autoVocabTopN")?.value, 10);
+  if (!topN || topN < 1) topN = 30;
+
+  const startCellInput = document.getElementById("autoVocabStart")
+    ?.value?.trim().toUpperCase() || "A1";
+  const parsedStart = parseColRowRef(startCellInput);
+  if (!parsedStart) {
+    alert("Invalid start cell. Use A1, B1, etc. (or 1A5 for extended columns).");
+    return;
+  }
+  const startCol = parsedStart.col;
+  const startRow = parsedStart.row - 1;
+
+  if (statusEl) statusEl.textContent = "Crunching frequencies…";
+
+  // setTimeout lets the status message paint before the (synchronous) crunching runs
+  setTimeout(function () {
+    const cleaned = normalizeTextForFreq(raw);
+    const words = tokenizeForFreq(cleaned);
+
+    if (!words.length) {
+      alert("No words found in that text.");
+      if (statusEl) statusEl.textContent = "";
+      return;
+    }
+
+    const singles = topFrequencyList(words, 1, topN);
+    const doubles = topFrequencyList(words, 2, topN);
+    const triples = topFrequencyList(words, 3, topN);
+
+    const stacked = singles.concat(doubles, triples).map(function (d) { return d.word; });
+
+    // Auto-expand the sheet if the stacked list runs past the bottom
+    const neededRows = startRow + stacked.length;
+    const currentDataRows = sheetTable.rows.length - 2; // minus header + selector rows
+    if (neededRows > currentDataRows) {
+      addNewRows(neededRows - currentDataRows);
+    }
+
+    for (let i = 0; i < stacked.length; i++) {
+      const r = startRow + i;
+      const row = sheetTable.rows[r + 2];   // +2 for header + selector row
+      if (!row) continue;
+      const cell = row.cells[startCol + 1]; // +1 for row-number column
+      if (cell) cell.innerText = stacked[i];
+    }
+
+    if (statusEl) {
+      statusEl.textContent =
+        "✅ Done — " + singles.length + " single words, " + doubles.length +
+        " 2-word combos, " + triples.length + " 3-word combos (" +
+        stacked.length + " rows total), starting at " + startCellInput + ".";
+    }
+  }, 30);
+};
+
+// ===============================
+// 9. TABLEIZER
+// Splits pasted text into the sheet: one sentence per row, and
+// every word / punctuation symbol gets its own cell. A blank line
+// in the source text (a paragraph break) becomes a blank row.
+// ===============================
+function tokenizeSentenceForTableizer(sentence) {
+  // A "word" token is letters/numbers (allows one internal apostrophe,
+  // e.g. "don't"); every other non-space character (. , : ; ! ? ( ) " —
+  // etc.) is its own single-character token.
+  const m = sentence.match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*|[^\s]/gu);
+  return m ? m : [];
+}
+
+// Common abbreviations that end in a period but do NOT end a sentence.
+const TABLEIZER_ABBREVIATIONS = [
+  "Mr", "Mrs", "Ms", "Dr", "Prof", "Sr", "Jr", "St", "Mt", "vs", "etc",
+  "approx", "dept", "univ", "no", "vol", "fig", "inc", "ltd", "corp", "co",
+  "cf", "al", "ca", "pp", "ed", "eds", "trans", "rev", "gen", "col", "lt",
+  "capt", "sgt", "maj", "adm", "gov", "sen", "rep", "pres", "supt", "hon"
+];
+
+// Temporarily swaps out periods that DON'T actually end a sentence (found in
+// abbreviations, decimals, initials, etc.) for a placeholder character, so
+// the sentence-splitter below doesn't mistake them for sentence boundaries.
+// Without this, "Mr. Smith went home." or "It was 3.14 seconds fast!" would
+// get fractured into extra broken-off rows instead of staying one sentence.
+function protectAbbreviationPeriods(text) {
+  let out = text;
+
+  // Spelled-out multi-part abbreviations: e.g. i.e. a.m. p.m. U.S. U.K.
+  out = out.replace(/\b(e\.g|i\.e|a\.m|p\.m|U\.S|U\.K)\.(?=\s|$)/gi, function (m) {
+    return m.replace(/\./g, "\u0001");
+  });
+
+  // Chained abbreviations with no spaces: Ph.D., U.S.A., M.D., B.A.
+  out = out.replace(/\.(?=[A-Z]\.)/g, "\u0001");
+
+  // Common titles/abbreviations followed by a period
+  const abbrevPattern = new RegExp("\\b(" + TABLEIZER_ABBREVIATIONS.join("|") + ")\\.", "g");
+  out = out.replace(abbrevPattern, function (m, word) { return word + "\u0001"; });
+
+  // Decimal numbers (3.14) and money ($5.99)
+  out = out.replace(/(\d)\.(?=\d)/g, "$1\u0001");
+
+  // Single-capital initials like "J. K. Rowling"
+  out = out.replace(/\b([A-Z])\.(?=\s+[A-Z](?:\.|[a-z]))/g, "$1\u0001");
+
+  // General safety net: an isolated period (not part of a .. or ... run)
+  // probably isn't a sentence end if the next real word starts lowercase —
+  // real sentences almost always start with a capital letter.
+  out = out.replace(/(?<!\.)\.(?!\.)(?=[,;:]?\s+[a-z])/g, "\u0001");
+
+  return out;
+}
+
+function restoreProtectedPeriods(text) {
+  return text.replace(/\u0001/g, ".");
+}
+
+function splitIntoSentencesForTableizer(paragraph) {
+  // Greedy match up to and including a run of . ! ? (plus a trailing
+  // quote/paren if present), otherwise whatever's left at the end.
+  const protectedText = protectAbbreviationPeriods(paragraph);
+  const m = protectedText.match(/[^.!?]+[.!?]+(?:["'”’)\]]+)?|[^.!?]+$/g);
+  if (!m) return [];
+  return m
+    .map(function (s) { return restoreProtectedPeriods(s.trim()); })
+    .filter(function (s) { return s.length > 0; });
+}
+
+window.tableizeText = function () {
+  const statusEl = document.getElementById("tableizerStatus");
+  const raw = document.getElementById("tableizerText")?.value || "";
+
+  if (!raw.trim()) {
+    alert("Please paste some text first.");
+    return;
+  }
+
+  const startCellInput = document.getElementById("tableizerStart")
+    ?.value?.trim().toUpperCase() || "A1";
+  const parsedStart = parseColRowRef(startCellInput);
+  if (!parsedStart) {
+    alert("Invalid start cell. Use A1, B1, etc. (or 1A5 for extended columns).");
+    return;
+  }
+  const startCol = parsedStart.col;
+  const startRow = parsedStart.row - 1;
+
+  if (statusEl) statusEl.textContent = "Tableizing…";
+
+  // setTimeout lets the status message paint before the (synchronous) parsing runs
+  setTimeout(function () {
+    // Paragraphs are separated by one or more fully-blank lines.
+    const paragraphs = raw.replace(/\r\n/g, "\n").split(/\n\s*\n+/);
+
+    // Build the full row plan first: each entry is either an array of
+    // tokens for a sentence row, or null for a blank paragraph-break row.
+    const rowPlan = [];
+    for (let p = 0; p < paragraphs.length; p++) {
+      const paragraphText = paragraphs[p].replace(/\n+/g, " ").trim();
+      if (!paragraphText) continue;
+
+      const sentences = splitIntoSentencesForTableizer(paragraphText);
+      for (let s = 0; s < sentences.length; s++) {
+        rowPlan.push(tokenizeSentenceForTableizer(sentences[s]));
+      }
+
+      // Blank separator row between paragraphs (not after the last one)
+      if (p < paragraphs.length - 1) {
+        rowPlan.push(null);
+      }
+    }
+
+    if (!rowPlan.length) {
+      alert("No text found to tableize.");
+      if (statusEl) statusEl.textContent = "";
+      return;
+    }
+
+    // Auto-expand the sheet: rows for the sentence count, and now columns
+    // too — if the longest sentence needs more room than the sheet
+    // currently has from the start column, we grow sideways (A..Z,
+    // 1A..1Z, 2A..2Z, ...) instead of cutting words off.
+    const neededRows = startRow + rowPlan.length;
+    const currentDataRows = sheetTable.rows.length - 2; // minus header + selector rows
+    if (neededRows > currentDataRows) {
+      addNewRows(neededRows - currentDataRows);
+    }
+
+    let maxTokens = 0;
+    for (let i = 0; i < rowPlan.length; i++) {
+      if (rowPlan[i] && rowPlan[i].length > maxTokens) maxTokens = rowPlan[i].length;
+    }
+    const neededCols = startCol + maxTokens;
+    let colsAdded = 0;
+    if (neededCols > TOTAL_COLS) {
+      colsAdded = neededCols - TOTAL_COLS;
+      // Safety check before creating a huge number of extra columns from
+      // what might be a parsing fluke (e.g. no punctuation/line breaks
+      // in the pasted text at all).
+      if (colsAdded > 200) {
+        const proceed = confirm(
+          "The longest sentence needs " + maxTokens + " cells, which means adding " +
+          colsAdded + " new columns to the sheet. Continue?"
+        );
+        if (!proceed) {
+          if (statusEl) statusEl.textContent = "Cancelled — no changes made.";
+          return;
+        }
+      }
+      addNewCols(colsAdded);
+    }
+
+    let sentenceRowCount = 0;
+
+    for (let i = 0; i < rowPlan.length; i++) {
+      const tokens = rowPlan[i];
+      const r = startRow + i;
+      const row = sheetTable.rows[r + 2]; // +2 for header + selector row
+      if (!row) continue;
+
+      if (!tokens) continue; // blank separator row — leave every cell empty
+      sentenceRowCount++;
+
+      for (let c = 0; c < tokens.length; c++) {
+        const cell = row.cells[startCol + c + 1]; // +1 for row-number column
+        if (cell) cell.innerText = tokens[c];
+      }
+    }
+
+    if (statusEl) {
+      let msg = "✅ Done — " + sentenceRowCount + " sentence" +
+        (sentenceRowCount === 1 ? "" : "s") + " placed, starting at " + startCellInput + ".";
+      if (colsAdded > 0) {
+        msg += " Sheet expanded by " + colsAdded + " column" + (colsAdded === 1 ? "" : "s") +
+          " (now " + TOTAL_COLS + " wide, up to " + colIndexToLabel(TOTAL_COLS - 1) +
+          ") so nothing got cut off.";
+      }
+      statusEl.textContent = msg;
+    }
+  }, 30);
+};
+
+
+// ===============================
+// 10. VOCAB HIGHLIGHTER
+// Paste in vocabulary the student already knows; every cell anywhere
+// on the sheet whose exact text matches one of those words gets a
+// yellow highlight — whatever's left unhighlighted is what's still
+// new to them.
+// ===============================
+window.highlightVocab = function () {
+  const raw = document.getElementById("vocabHighlightText")?.value || "";
+  const statusEl = document.getElementById("vocabHighlightStatus");
+
+  const words = raw
+    .split(/[\n,]+/)
+    .map(function (w) { return w.trim().toLowerCase(); })
+    .filter(function (w) { return w.length > 0; });
+
+  // Clear any previous highlight pass first, so this is always a fresh check
+  document.querySelectorAll("#sheet td.vocab-highlight").forEach(function (cell) {
+    cell.classList.remove("vocab-highlight");
+  });
+
+  if (!words.length) {
+    if (statusEl) statusEl.textContent = "Paste some vocabulary first.";
+    return;
+  }
+
+  const vocabSet = new Set(words);
+  let matches = 0;
+
+  document.querySelectorAll("#sheet td[contenteditable='true']").forEach(function (cell) {
+    const text = cell.innerText.trim().toLowerCase();
+    if (text && vocabSet.has(text)) {
+      cell.classList.add("vocab-highlight");
+      matches++;
+    }
+  });
+
+  if (statusEl) {
+    statusEl.textContent = "✅ Highlighted " + matches + " matching cell" +
+      (matches === 1 ? "" : "s") + " across the sheet, for " + vocabSet.size +
+      " vocab word" + (vocabSet.size === 1 ? "" : "s") + ".";
+  }
+};
+
+// ---------- Click-to-highlight mode ----------
+// While ON, clicking any cell in the table toggles its yellow highlight
+// (same .vocab-highlight class the paste-a-list button uses, so Harvest
+// treats both kinds of highlight identically).
+window.clickHighlightMode = false;
+
+window.toggleClickHighlightMode = function () {
+  window.clickHighlightMode = !window.clickHighlightMode;
+  const btn = document.getElementById("clickHighlightBtn");
+  const sheet = document.getElementById("sheet");
+  const statusEl = document.getElementById("vocabHighlightStatus");
+
+  if (btn) {
+    btn.textContent = "Click to Highlight Vocabulary: " + (window.clickHighlightMode ? "ON" : "OFF");
+    btn.classList.toggle("is-on", window.clickHighlightMode);
+  }
+  if (sheet) sheet.classList.toggle("click-highlight-mode", window.clickHighlightMode);
+
+  if (window.clickHighlightMode) {
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    if (statusEl) statusEl.textContent = "Click-to-highlight is ON — click any cell to mark it as known.";
+  } else if (statusEl) {
+    statusEl.textContent = "Click-to-highlight is OFF — cells edit normally.";
+  }
+};
+
+(function () {
+  function getTargetCell(e) {
+    if (!window.clickHighlightMode) return null;
+    const cell = e.target.closest && e.target.closest("#sheet td[contenteditable='true']");
+    return cell || null;
+  }
+  // Stop the cell from taking focus / showing a caret while in this mode
+  document.addEventListener("mousedown", function (e) {
+    if (getTargetCell(e)) e.preventDefault();
+  }, true);
+  document.addEventListener("click", function (e) {
+    const cell = getTargetCell(e);
+    if (!cell) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const text = cell.innerText.trim().toLowerCase();
+    const turnOn = !cell.classList.contains("vocab-highlight");
+    if (!text) { cell.classList.toggle("vocab-highlight"); return; }
+
+    // Apply to EVERY cell on the sheet with the same word (case-insensitive)
+    let count = 0;
+    document.querySelectorAll("#sheet td[contenteditable='true']").forEach(function (c) {
+      if (c.innerText.trim().toLowerCase() === text) {
+        c.classList.toggle("vocab-highlight", turnOn);
+        count++;
+      }
+    });
+    const statusEl = document.getElementById("vocabHighlightStatus");
+    if (statusEl) {
+      statusEl.textContent = (turnOn ? "✅ Highlighted " : "Removed highlight from ") + count +
+        " cell" + (count === 1 ? "" : "s") + " containing \u201C" + cell.innerText.trim() + "\u201D.";
+    }
+  }, true);
+})();
+
+window.clearVocabHighlights = function () {
+  document.querySelectorAll("#sheet td.vocab-highlight").forEach(function (cell) {
+    cell.classList.remove("vocab-highlight");
+  });
+  const statusEl = document.getElementById("vocabHighlightStatus");
+  if (statusEl) statusEl.textContent = "Highlights cleared.";
+};
+
+
+// ===============================
+// HARVEST UN-HIGHLIGHTED TEXT
+// Pulls every un-highlighted cell out of the sheet, row by row, in
+// its original left-to-right / top-to-bottom order, skipping any
+// cell currently marked as a known vocab word (.vocab-highlight).
+// A row that ends up with nothing left in it (either it was already
+// blank, or every word in it was highlighted/known) becomes a blank
+// line in the output, so paragraph breaks are preserved.
+// ===============================
+
+// Joins tokens back into readable text: closing punctuation (. , ! ? ; : ) ] })
+// attaches to the word before it with no space, and an opening bracket/paren
+// suppresses the space before whatever follows it. Not perfect — some
+// sentences will look a little rough where a highlighted word left a gap —
+// but it's meant for feeding into Frequency Finder / Auto Vocab, not for
+// polished reading.
+function joinHarvestedTokens(tokens) {
+  const noSpaceBefore = /^[.,!?;:)\]}]+$/;
+  const noSpaceAfterOpener = /^[([{]+$/;
+  let result = "";
+  let forceNoSpace = false;
+
+  tokens.forEach(function (tok, idx) {
+    if (idx === 0) {
+      result = tok;
+    } else if (noSpaceBefore.test(tok) || forceNoSpace) {
+      result += tok;
+    } else {
+      result += " " + tok;
+    }
+    forceNoSpace = noSpaceAfterOpener.test(tok);
+  });
+
+  return result;
+}
+
+window.harvestUnhighlighted = function () {
+  const statusEl = document.getElementById("harvestStatus");
+  const outputEl = document.getElementById("harvestedTextOutput");
+  const copyBtn = document.getElementById("copyHarvestedBtn");
+
+  const rows = sheetTable.rows; // rows[0]=letters, rows[1]=language selectors, rows[2+]=data
+  const outputLines = [];
+  let omittedCount = 0;
+  let keptCount = 0;
+
+  for (let r = 2; r < rows.length; r++) {
+    const row = rows[r];
+    const tokens = [];
+
+    for (let c = 1; c < row.cells.length; c++) {
+      const cell = row.cells[c];
+      if (!cell) continue;
+
+      const text = cell.innerText.trim();
+      if (!text) continue;
+
+      if (cell.classList.contains("vocab-highlight")) {
+        omittedCount++;
+        continue; // known word — leave it out of the harvest
+      }
+
+      tokens.push(text);
+      keptCount++;
+    }
+
+    outputLines.push(tokens.length ? joinHarvestedTokens(tokens) : "");
+  }
+
+  // Collapse runs of blank lines down to a single blank line (paragraph
+  // gap), and trim leading/trailing blank lines, for a cleaner result.
+  const collapsed = [];
+  let blankRun = 0;
+  outputLines.forEach(function (line) {
+    if (line === "") {
+      blankRun++;
+      if (blankRun <= 1) collapsed.push("");
+    } else {
+      blankRun = 0;
+      collapsed.push(line);
+    }
+  });
+  while (collapsed.length && collapsed[0] === "") collapsed.shift();
+  while (collapsed.length && collapsed[collapsed.length - 1] === "") collapsed.pop();
+
+  const resultText = collapsed.join("\n");
+
+  if (!resultText.trim()) {
+    if (outputEl) { outputEl.style.display = "none"; outputEl.value = ""; }
+    if (copyBtn) copyBtn.style.display = "none";
+    if (statusEl) {
+      statusEl.textContent = omittedCount > 0
+        ? "Nothing left to harvest — every non-empty cell is highlighted as known."
+        : "Nothing to harvest — the sheet looks empty.";
+    }
+    return;
+  }
+
+  if (outputEl) {
+    outputEl.style.display = "block";
+    outputEl.value = resultText;
+  }
+  if (copyBtn) copyBtn.style.display = "inline-flex";
+
+  if (statusEl) {
+    statusEl.textContent = "✅ Harvested " + keptCount + " word" + (keptCount === 1 ? "" : "s") +
+      " (" + omittedCount + " highlighted word" + (omittedCount === 1 ? "" : "s") + " skipped). " +
+      "Copy it below into Frequency Finder or Auto Vocab Builder.";
+  }
+};
+
+window.copyHarvestedText = function () {
+  const outputEl = document.getElementById("harvestedTextOutput");
+  const statusEl = document.getElementById("harvestStatus");
+  if (!outputEl || !outputEl.value) return;
+
+  outputEl.select();
+  outputEl.setSelectionRange(0, outputEl.value.length);
+
+  const finish = function (ok) {
+    if (statusEl) {
+      statusEl.textContent = ok
+        ? "✅ Copied to clipboard."
+        : "Couldn't copy automatically — the text is selected, so you can press Ctrl/Cmd+C.";
+    }
+  };
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(outputEl.value).then(function () {
+      finish(true);
+    }).catch(function () {
+      finish(false);
+    });
+  } else {
+    try {
+      finish(document.execCommand("copy"));
+    } catch (e) {
+      finish(false);
+    }
+  }
+};
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+<script src="translator.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+<script>
+class SpreadsheetAI {
+
+  constructor(tableElement) {
+
+    this.table = tableElement;
+
+    this.isRunning = false;
+    this.stopRequested = false;
+    this.isLoaded = false;
+
+    this.statusEl = document.getElementById('aiStatus');
+    this.progressEl = document.getElementById('aiProgress');
+    this.progressFill = document.getElementById('aiProgressFill');
+    this.progressText = document.getElementById('aiProgressText');
+    this.commandStatus = document.getElementById('aiCommandStatus');
+
+    this.executeBtn = document.getElementById('aiExecute');
+    this.commandInput = document.getElementById('aiCommand');
+
+    this.activateBtn = document.getElementById('aiActivate');
+    this.toggleBtn = document.getElementById('aiToggle');
+    this.closeBtn = document.getElementById('aiClose');
+    this.panel = document.getElementById('aiPanel');
+
+    this.languageMap = {
+      english:'en',
+      spanish:'es',
+      french:'fr',
+      german:'de',
+      italian:'it',
+      portuguese:'pt',
+      en:'en',
+      es:'es',
+      fr:'fr',
+      de:'de',
+      it:'it',
+      pt:'pt'
+    };
+
+    this.initUI();
+  }
+
+  initUI() {
+
+    this.activateBtn.onclick = () => this.activateAI();
+
+    this.toggleBtn.onclick = () => {
+      this.panel.classList.toggle('active');
+    };
+
+    this.closeBtn.onclick = () => {
+      this.panel.classList.remove('active');
+    };
+
+    this.executeBtn.onclick = () => {
+      this.executeCommand();
+    };
+
+    this.setStatus('Click Turn On AI');
+  }
+
+  async activateAI() {
+
+    this.isLoaded = true;
+
+    this.activateBtn.innerText = 'AI Ready';
+
+    this.activateBtn.style.background = '#28a745';
+
+    this.toggleBtn.classList.add('active');
+
+    this.executeBtn.disabled = false;
+
+    this.panel.classList.add('active');
+
+    this.setStatus('Ready');
+  }
+
+  setStatus(msg) {
+    this.statusEl.textContent = msg;
+  }
+
+  setCommandStatus(msg) {
+
+    this.commandStatus.classList.add('active');
+
+    this.commandStatus.textContent = msg;
+  }
+
+  parseCommand(command) {
+
+    let cmd = command.toLowerCase();
+
+    const match = cmd.match(
+      /(?:column\s*)?([a-z])\s*(?:to|into)\s*(?:column\s*)?([a-z])/i
+    );
+
+    if (!match) {
+      return {
+        error:'Try: translate column a to b spanish'
+      };
+    }
+
+    let targetLang = 'es';
+
+    for (const [name, code] of Object.entries(this.languageMap)) {
+
+      if (cmd.includes(name)) {
+        targetLang = code;
+      }
+    }
+
+    return {
+      fromCol: match[1].toUpperCase().charCodeAt(0)-65,
+      toCol: match[2].toUpperCase().charCodeAt(0)-65,
+      targetLang
+    };
+  }
+
+  getCellText(col,row) {
+
+    const r = this.table.rows[row];
+
+    if (!r) return '';
+
+    const c = r.cells[col+1];
+
+    return c ? c.innerText.trim() : '';
+  }
+
+  setCellText(col,row,text) {
+
+    const r = this.table.rows[row];
+
+    if (!r) return;
+
+    const c = r.cells[col+1];
+
+    if (c) {
+      c.innerText = text;
+    }
+  }
+
+  async executeCommand() {
+
+    const cmd = this.commandInput.value.trim();
+
+    if (!cmd) return;
+
+    const parsed = this.parseCommand(cmd);
+
+    if (parsed.error) {
+
+      this.setCommandStatus(parsed.error);
+
+      return;
+    }
+
+    const tasks = [];
+
+    for (let r=2; r<this.table.rows.length; r++) {
+
+      const text = this.getCellText(parsed.fromCol,r);
+
+      if (text) {
+
+        tasks.push({
+          row:r,
+          text
+        });
+      }
+    }
+
+    if (!tasks.length) {
+
+      this.setCommandStatus('No text found');
+
+      return;
+    }
+
+    let done = 0;
+
+    for (const task of tasks) {
+
+      const translated =
+        await window.fakeTranslate(
+          task.text,
+          parsed.targetLang
+        );
+
+      this.setCellText(
+        parsed.toCol,
+        task.row,
+        translated
+      );
+
+      done++;
+
+      const pct =
+        Math.round((done/tasks.length)*100);
+
+      this.progressFill.style.width =
+        pct + '%';
+
+      this.progressText.textContent =
+        done + '/' + tasks.length;
+    }
+
+    this.setCommandStatus(
+      'Done ' + done
+    );
+  }
+}
+
+const aiTable =
+  document.getElementById('sheet');
+
+if (aiTable) {
+
+  new SpreadsheetAI(aiTable);
+}
+</script>
+
+
+<script src="script.js"></script>
+
+
+  
+</body>
+</html>
